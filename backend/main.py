@@ -8,6 +8,8 @@ import threading
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import Pipeline
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import classification_report, accuracy_score
 
 app = FastAPI(title="Sentiment Analysis")
 lock = threading.Lock()
@@ -41,6 +43,27 @@ def _build_model():
         for row in reader:
             texts.append(row["text"])
             labels.append(row["sentiment"])
+
+   
+    X_train, X_test, y_train, y_test = train_test_split(
+        texts, labels, test_size=0.2, stratify=labels, random_state=42
+    )
+    eval_model = Pipeline([
+        ("tfidf", TfidfVectorizer(max_features=8000, ngram_range=(1, 2))),
+        ("clf", LogisticRegression(C=1.0, max_iter=1000)),
+    ])
+    eval_model.fit(X_train, y_train)
+    y_pred = eval_model.predict(X_test)
+
+    print(f"\n{'='*50}")
+    print(f"Dataset : {len(texts)} total samples")
+    print(f"Train   : {len(X_train)} | Test : {len(X_test)}")
+    print(f"Test Accuracy : {accuracy_score(y_test, y_pred):.4f} ({accuracy_score(y_test, y_pred)*100:.2f}%)")
+    print(f"\nClassification Report (held-out test set):")
+    print(classification_report(y_test, y_pred, digits=3))
+    print(f"{'='*50}\n")
+
+   
     model = Pipeline([
         ("tfidf", TfidfVectorizer(max_features=8000, ngram_range=(1, 2))),
         ("clf", LogisticRegression(C=1.0, max_iter=1000)),
@@ -61,7 +84,7 @@ def analyze_text(text: str) -> SentimentResult:
     else:
         label = "pos" if pos_prob > neg_prob else "neg"
     compound = round(pos_prob - neg_prob, 4)
-    neu_score = round(1 - abs(compound), 4)  
+    neu_score = round(1 - abs(compound), 4)
     return SentimentResult(
         text=text, compound=compound,
         pos=round(pos_prob, 4), neg=round(neg_prob, 4),
