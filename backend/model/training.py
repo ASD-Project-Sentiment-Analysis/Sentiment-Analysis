@@ -1,4 +1,6 @@
 import csv
+import html
+import re
 from pathlib import Path
 
 import joblib
@@ -8,10 +10,26 @@ from sklearn.metrics import accuracy_score, classification_report
 from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
 
-
-BASE_DIR = Path(__file__).resolve().parents[1]
-DATA_PATH = BASE_DIR / "training_data.csv"
+DATA_PATH = Path(__file__).resolve().parent / "IMDB.csv"
 MODEL_PATH = Path(__file__).resolve().parent / "sentiment_model.pkl"
+LABEL_MAP = {
+    "positive": "pos",
+    "negative": "neg",
+}
+
+
+def clean_text(text: str) -> str:
+    text = html.unescape(text)
+    text = re.sub(r"<br\s*/?>", " ", text, flags=re.IGNORECASE)
+    text = re.sub(r"<[^>]+>", " ", text)
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def normalize_label(label: str) -> str:
+    normalized = LABEL_MAP.get(str(label).strip().lower())
+    if normalized is None:
+        raise ValueError(f"Unsupported sentiment label: {label!r}")
+    return normalized
 
 
 def load_training_data(csv_path: Path = DATA_PATH) -> tuple[list[str], list[str]]:
@@ -19,8 +37,17 @@ def load_training_data(csv_path: Path = DATA_PATH) -> tuple[list[str], list[str]
     with open(csv_path, newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         for row in reader:
-            texts.append(row["text"])
-            labels.append(row["sentiment"])
+            text = row.get("text") or row.get("review")
+            label = row.get("sentiment")
+            if not text or not label:
+                continue
+
+            cleaned_text = clean_text(text)
+            if not cleaned_text:
+                continue
+
+            texts.append(cleaned_text)
+            labels.append(normalize_label(label))
     return texts, labels
 
 

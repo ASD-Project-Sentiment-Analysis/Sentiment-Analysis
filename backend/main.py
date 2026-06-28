@@ -33,10 +33,19 @@ class AnalyzeResponse(BaseModel):
 model = load_model()
 classes = list(model.classes_)
 
+def class_index(*labels) -> int:
+    for label in labels:
+        if label in classes:
+            return classes.index(label)
+    raise ValueError(f"Model is missing expected class labels: {labels}")
+
+POS_CLASS_INDEX = class_index("pos", "positive", 1)
+NEG_CLASS_INDEX = class_index("neg", "negative", 0)
+
 def analyze_text(text: str) -> SentimentResult:
     probs = model.predict_proba([text])[0]
-    pos_prob = float(probs[classes.index("pos")])
-    neg_prob = float(probs[classes.index("neg")])
+    pos_prob = float(probs[POS_CLASS_INDEX])
+    neg_prob = float(probs[NEG_CLASS_INDEX])
     conf = max(pos_prob, neg_prob)
     if conf < NEU_THRESHOLD:
         label = "neu"
